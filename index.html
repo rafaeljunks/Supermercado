@@ -1,0 +1,313 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Caixa PRO Ultra | Joinville</title>
+    
+    <script src="https://unpkg.com/html5-qrcode"></script>
+    <script src="https://unpkg.com/tesseract.js@v4.0.2/dist/tesseract.min.js"></script>
+    
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&family=JetBrains+Mono:wght@500&display=swap');
+
+        :root { 
+            --primary: #0f172a; 
+            --accent: #10b981; 
+            --highlight: #f59e0b; 
+            --bg: #f1f5f9; 
+            --danger: #ef4444;
+            --whatsapp: #25d366;
+            --text-main: #1e293b;
+            --text-sub: #64748b;
+            --card-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1);
+        }
+
+        body { 
+            font-family: 'Inter', -apple-system, sans-serif; 
+            margin: 0; background: var(--bg); height: 100vh; 
+            display: flex; flex-direction: column; overflow: hidden; color: var(--text-main);
+        }
+        
+        /* HEADER & METAS */
+        .market-header { background: var(--primary); padding: 10px 15px; }
+        .market-select { 
+            background: #1e293b; color: white; border: 1px solid #334155; 
+            padding: 12px; border-radius: 12px; width: 100%; font-size: 1rem; font-weight: 600; outline: none;
+        }
+
+        .budget-bar-container { background: #020617; padding: 10px 15px; color: white; }
+        .budget-info { display:flex; justify-content:space-between; font-size: 0.85rem; margin-bottom: 6px; font-weight: 600; }
+        .budget-bg { background: #1e293b; height: 10px; border-radius: 5px; overflow: hidden; }
+        #budget-fill { background: var(--accent); height: 100%; width: 0%; transition: 0.8s ease; }
+
+        /* TABS */
+        .tabs { display: flex; background: #020617; }
+        .tab { flex: 1; padding: 16px 5px; text-align: center; font-size: 0.75rem; opacity: 0.5; font-weight: 800; color: white; letter-spacing: 1px; }
+        .tab.active { opacity: 1; border-bottom: 4px solid var(--accent); color: var(--accent); }
+
+        .content { flex: 1; display: none; overflow-y: auto; padding: 12px 12px 150px 12px; }
+        .content.active { display: block; }
+
+        /* CARDS */
+        .card { background: white; padding: 12px; border-radius: 16px; margin-bottom: 10px; box-shadow: var(--card-shadow); }
+        
+        /* BOTÕES DE AÇÃO NO CARRINHO */
+        .cart-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 15px; }
+        .btn-finish { background: var(--accent); color: white; border: none; padding: 15px; border-radius: 12px; font-weight: 800; font-size: 0.75rem; cursor: pointer; }
+        .btn-share { background: var(--whatsapp); color: white; border: none; padding: 15px; border-radius: 12px; font-weight: 800; font-size: 0.75rem; cursor: pointer; }
+
+        /* HISTÓRICO EM DADOS */
+        .hist-card { background: white; border-radius: 16px; padding: 15px; margin-bottom: 12px; box-shadow: var(--card-shadow); }
+        .hist-row { display: flex; justify-content: space-between; align-items: center; padding: 6px 0; border-top: 1px solid #f1f5f9; }
+        .hist-market-tag { font-size: 0.7rem; font-weight: 700; text-transform: uppercase; padding: 3px 8px; border-radius: 6px; background: #f8fafc; color: var(--text-sub); }
+        .hist-price { font-family: 'JetBrains Mono', monospace; font-weight: 700; color: var(--accent); }
+
+        /* SCANNER */
+        #reader-container { position: relative; width: 100%; height: 35vh; background: #000; border-radius: 20px; overflow: hidden; display: flex; align-items: center; justify-content: center; }
+        #reader { width: 100% !important; border: none !important; }
+        .scan-overlay { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 80%; height: 120px; border: 2px solid var(--accent); z-index: 10; border-radius: 15px; pointer-events: none; box-shadow: 0 0 0 1000px rgba(0,0,0,0.6); }
+
+        .footer-total { position: fixed; bottom: 0; left: 0; right: 0; background: white; padding: 15px 20px; border-top: 2px solid #e2e8f0; display: flex; justify-content: space-between; align-items: center; z-index: 100; }
+        #total-val { font-size: 1.8rem; color: var(--accent); font-weight: 800; font-family: 'JetBrains Mono', monospace; }
+    </style>
+</head>
+<body>
+
+<div class="market-header">
+    <select id="current-market" class="market-select">
+        <option value="Condor">Condor</option>
+        <option value="Fort Atacadista">Fort Atacadista</option>
+        <option value="Hipermais">Hipermais</option>
+        <option value="Sams Club">Sams Club</option>
+        <option value="Angeloni">Angeloni</option>
+        <option value="Giassi">Giassi</option>
+    </select>
+</div>
+
+<div class="budget-bar-container" onclick="setBudget()">
+    <div class="budget-info">
+        <span>🛒 Gasto: <b id="spent-label">R$ 0,00</b></span>
+        <span>🎯 Meta: <b id="budget-label">Definir</b></span>
+    </div>
+    <div class="budget-bg"><div id="budget-fill"></div></div>
+</div>
+
+<div class="tabs">
+    <div class="tab active" onclick="switchTab(0)">SCANNER</div>
+    <div class="tab" onclick="switchTab(1)">LISTA</div>
+    <div class="tab" onclick="switchTab(2)">CARRINHO</div>
+    <div class="tab" onclick="switchTab(3)">DADOS</div>
+</div>
+
+<div id="tab-scan" class="content active">
+    <div id="reader-container">
+        <button id="btn-start" style="position:absolute; z-index:20; padding:12px 25px; border-radius:30px; border:none; background:var(--accent); color:white; font-weight:800;" onclick="startScanner()">LIGAR CÂMERA</button>
+        <div id="reader"></div>
+        <div class="scan-overlay"></div>
+    </div>
+    <div style="display:flex; justify-content:center; align-items:center; gap:25px; margin:20px 0;">
+        <button style="background:var(--primary); color:white; border:none; width:45px; height:45px; border-radius:12px; font-size:1.5rem;" onclick="changeQty(-1)">−</button>
+        <span id="current-qty" style="font-size:1.8rem; font-weight:800;">1</span>
+        <button style="background:var(--primary); color:white; border:none; width:45px; height:45px; border-radius:12px; font-size:1.5rem;" onclick="changeQty(1)">+</button>
+    </div>
+    <div id="price-alert" style="padding:15px; border-radius:14px; background:white; border-left:5px solid var(--accent); display:none; margin-bottom:15px; box-shadow:var(--card-shadow);"></div>
+    <div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:10px;">
+        <button onclick="tirarFotoPreco()" style="border:none; padding:15px 5px; border-radius:15px; background:var(--highlight); color:white; font-weight:800; font-size:0.7rem;">📸 PREÇO</button>
+        <button onclick="entradaManual()" style="border:none; padding:15px 5px; border-radius:15px; background:var(--accent); color:white; font-weight:800; font-size:0.7rem;">⌨️ DIGITAR</button>
+        <button onclick="reiniciar()" style="border:none; padding:15px 5px; border-radius:15px; background:var(--primary); color:white; font-weight:800; font-size:0.7rem;">🔄 LIMPAR</button>
+    </div>
+</div>
+
+<div id="tab-lista" class="content">
+    <div style="display:flex; gap:10px; margin-bottom:20px;">
+        <input type="text" id="todo-input" style="flex:1; padding:15px; border-radius:12px; border:2px solid #e2e8f0; outline:none;" placeholder="O que comprar?">
+        <button onclick="addTodo()" style="background:var(--primary); color:white; border:none; padding:0 20px; border-radius:12px; font-weight:800; font-size:1.5rem;">+</button>
+    </div>
+    <div id="todo-list"></div>
+</div>
+
+<div id="tab-carrinho" class="content">
+    <div class="cart-actions">
+        <button class="btn-share" onclick="shareWhatsApp()">📲 WHATSAPP</button>
+        <button class="btn-finish" onclick="finalizarCompra()">🏁 FINALIZAR COMPRA</button>
+    </div>
+    <div id="lista-atual"></div>
+    <div class="footer-total">
+        <span style="font-weight:700; color:var(--text-sub);">TOTAL</span>
+        <b id="total-val">R$ 0,00</b>
+    </div>
+</div>
+
+<div id="tab-dados" class="content">
+    <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:20px;">
+        <button onclick="exportarDados()" style="padding:15px; border-radius:14px; background:#334155; color:white; border:none; font-weight:700; font-size:0.8rem">💾 BACKUP</button>
+        <button onclick="document.getElementById('import-file').click()" style="padding:15px; border-radius:14px; background:white; color:var(--primary); border:2px solid #e2e8f0; font-weight:700; font-size:0.8rem">📂 IMPORTAR</button>
+        <input type="file" id="import-file" style="display:none" onchange="importarDados(this)">
+    </div>
+    <div id="history-data"></div>
+</div>
+
+<canvas id="hidden-canvas" style="display:none;"></canvas>
+
+<script>
+    let scanner;
+    let items = JSON.parse(localStorage.getItem('v_carrinho')) || [];
+    let history = JSON.parse(localStorage.getItem('v_precos')) || {};
+    let names = JSON.parse(localStorage.getItem('v_nomes')) || {};
+    let todos = JSON.parse(localStorage.getItem('v_todos')) || [];
+    let budget = localStorage.getItem('v_budget') || 0;
+    let lastBarcode = "";
+    let currentQty = 1;
+
+    async function init() {
+        scanner = new Html5Qrcode("reader");
+        render();
+        startScanner();
+    }
+
+    function startScanner() {
+        const config = { fps: 25, qrbox: { width: 300, height: 130 }, aspectRatio: 1.0 };
+        scanner.start({ facingMode: "environment" }, config, (text) => {
+            if (text !== lastBarcode) {
+                lastBarcode = text;
+                vibrar(100);
+                checkHistory(text);
+            }
+        }).then(() => document.getElementById('btn-start').style.display = 'none')
+          .catch(() => document.getElementById('btn-start').style.display = 'block');
+    }
+
+    function checkHistory(barcode) {
+        const box = document.getElementById('price-alert');
+        let prodName = names[barcode] || "Produto novo";
+        if(history[barcode]) {
+            let info = history[barcode].map(h => `<br>• ${h.market}: R$ ${h.price.toFixed(2)}`).join('');
+            box.innerHTML = `<span style="color:var(--text-sub); font-size:0.7rem; font-weight:800;">HISTÓRICO</span><br><b>${prodName}</b><div style="margin-top:5px;">${info}</div>`;
+            box.style.display = 'block';
+        } else {
+            box.innerHTML = `🏷️ <b>${prodName}</b> detectado!`;
+            box.style.display = 'block';
+        }
+    }
+
+    function addItem(price) {
+        const market = document.getElementById('current-market').value;
+        if(lastBarcode && !names[lastBarcode]) {
+            let n = prompt("Nome do produto:");
+            names[lastBarcode] = n || "Item " + lastBarcode.slice(-4);
+            localStorage.setItem('v_nomes', JSON.stringify(names));
+        }
+        items.unshift({ id: Date.now(), market, price, qty: currentQty, name: (lastBarcode ? names[lastBarcode] : "Manual"), barcode: lastBarcode });
+        updateHistory(lastBarcode, market, price);
+        save();
+        currentQty = 1; document.getElementById('current-qty').innerText = "1";
+        vibrar([50, 50]);
+    }
+
+    function updateHistory(barcode, market, price) {
+        if(!barcode) return;
+        if(!history[barcode]) history[barcode] = [];
+        let mIdx = history[barcode].findIndex(h => h.market === market);
+        if(mIdx > -1) history[barcode][mIdx].price = price;
+        else history[barcode].push({ market, price });
+    }
+
+    function save() {
+        localStorage.setItem('v_carrinho', JSON.stringify(items));
+        localStorage.setItem('v_precos', JSON.stringify(history));
+        localStorage.setItem('v_nomes', JSON.stringify(names));
+        localStorage.setItem('v_todos', JSON.stringify(todos));
+        render();
+    }
+
+    function render() {
+        let total = 0;
+        document.getElementById('lista-atual').innerHTML = items.map(i => {
+            total += (i.price * i.qty);
+            return `<div class="card" style="display:flex; justify-content:space-between; align-items:center;">
+                <div><small style="color:var(--accent); font-weight:800;">${i.market}</small><br><b>${i.qty}x ${i.name}</b></div>
+                <div style="text-align:right">
+                    <b style="font-family:'JetBrains Mono'">R$ ${(i.price * i.qty).toFixed(2)}</b><br>
+                    <button onclick="remover(${i.id})" style="border:none; background:none; color:var(--danger); font-size:0.7rem; font-weight:700; margin-top:5px;">EXCLUIR</button>
+                </div>
+            </div>`;
+        }).join('');
+
+        document.getElementById('total-val').innerText = "R$ " + total.toFixed(2);
+        document.getElementById('spent-label').innerText = "R$ " + total.toFixed(2);
+        if(budget > 0) document.getElementById('budget-fill').style.width = Math.min((total / budget) * 100, 100) + "%";
+        if(budget > 0) document.getElementById('budget-label').innerText = "R$ " + parseFloat(budget).toFixed(2);
+
+        document.getElementById('todo-list').innerHTML = todos.map((t, idx) => `
+            <div class="card" style="display:flex; justify-content:space-between; align-items:center; opacity:${t.done ? 0.4 : 1}">
+                <span onclick="todos[${idx}].done = !todos[${idx}].done; save()" style="flex:1; font-weight:700; ${t.done ? 'text-decoration:line-through' : ''}">${t.txt}</span>
+                <button onclick="todos.splice(${idx},1); save()" style="border:none; background:none; color:var(--danger); font-weight:800;">✕</button>
+            </div>
+        `).join('');
+
+        document.getElementById('history-data').innerHTML = Object.keys(history).map(code => `
+            <div class="hist-card">
+                <span style="font-weight:700; display:block; margin-bottom:10px;">${names[code] || code}</span>
+                ${history[code].map(p => `<div class="hist-row"><span class="hist-market-tag">${p.market}</span><span class="hist-price">R$ ${p.price.toFixed(2)}</span></div>`).join('')}
+            </div>
+        `).join('');
+    }
+
+    function finalizarCompra() {
+        if(items.length === 0) return alert("O carrinho está vazio!");
+        if(confirm("Deseja finalizar a compra? Isso limpará o carrinho, mas manterá seu histórico de preços.")) {
+            items = [];
+            // Opcional: Limpar itens riscados da lista de compras ao finalizar
+            todos = todos.filter(t => !t.done);
+            save();
+            switchTab(0);
+            vibrar([100, 50, 100]);
+            alert("Compra finalizada com sucesso!");
+        }
+    }
+
+    function shareWhatsApp() {
+        let m = document.getElementById('current-market').value;
+        let t = `🛒 *Compra no ${m}*\n\n`;
+        items.forEach(i => t += `• ${i.qty}x ${i.name}: R$ ${(i.price * i.qty).toFixed(2)}\n`);
+        t += `\n💰 *TOTAL: ${document.getElementById('total-val').innerText}*`;
+        window.open(`https://wa.me/?text=${encodeURIComponent(t)}`);
+    }
+
+    function switchTab(idx) {
+        document.querySelectorAll('.tab').forEach((t, i) => t.classList.toggle('active', i === idx));
+        document.querySelectorAll('.content').forEach((c, i) => c.classList.toggle('active', i === idx));
+        if(idx === 0) startScanner();
+    }
+
+    function changeQty(v) { currentQty = Math.max(1, currentQty + v); document.getElementById('current-qty').innerText = currentQty; }
+    function setBudget() { let b = prompt("Meta de gasto:"); if(b) { budget = b; localStorage.setItem('v_budget', b); render(); } }
+    function remover(id) { items = items.filter(i => i.id !== id); save(); }
+    function addTodo() { const i = document.getElementById('todo-input'); if(i.value) { todos.push({txt: i.value, done:false}); i.value=""; save(); } }
+    function vibrar(p) { if(navigator.vibrate) navigator.vibrate(p); }
+    function reiniciar() { lastBarcode = ""; document.getElementById('price-alert').style.display = 'none'; }
+    function entradaManual() { let p = prompt("Preço:"); if(p) addItem(parseFloat(p.replace(',','.'))); }
+
+    function exportarDados() {
+        const d = { history, names, budget };
+        const blob = new Blob([JSON.stringify(d)], {type: "text/plain"});
+        const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = `backup_joinville.txt`; a.click();
+    }
+
+    function importarDados(input) {
+        const r = new FileReader();
+        r.onload = function() {
+            try {
+                const d = JSON.parse(r.result);
+                history = d.history || {}; names = d.names || {}; budget = d.budget || 0;
+                save(); alert("Importado!");
+            } catch(e) { alert("Erro no arquivo!"); }
+        };
+        r.readAsText(input.files[0]);
+    }
+
+    window.onload = init;
+</script>
+</body>
+</html>
